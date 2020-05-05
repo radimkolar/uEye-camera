@@ -1,5 +1,7 @@
 #===========================================================================#
-#                                                                           #
+# Modified by Radim Kolar, Brno University of Technology, 2020              #
+# Based on iDS Imaging, Python Examples                                     #
+#===========================================================================#
 #  Copyright (C) 2006 - 2018                                                #
 #  IDS Imaging Development Systems GmbH                                     #
 #  Dimbacher Str. 6-8                                                       #
@@ -44,7 +46,7 @@ import os
 #import keyboard
 #import matplotlib.cm as cm
 #import matplotlib.pyplot as plt
-#from ctypes import *
+from ctypes import *
 #import sys
 
 #---------------------------------------------------------------------------------------------------------------------------------------
@@ -73,7 +75,6 @@ ii = 1
 #---------------------------------------------------------------------------------------------------------------------------------------
 print("START")
 print()
-
 
 #%%
 # Starts the driver and establishes the connection to the camera
@@ -218,27 +219,20 @@ else:
 
 #---------------------------------------------------------------------------------------------------------------------------------------
 def myclick(event, x, y, flags, param):
-	# grab references to the global variables
     global refPoint
-	# if the left mouse button was clicked, record the starting
-	# (x, y) coordinates and indicate that cropping is being
-	# performed
     if event == cv2.EVENT_LBUTTONDOWN:
         refPoint = [x, y]
-        #print(x,y)
-
 #------------------------------------------------
 cv2.namedWindow("Spectrum")
 cv2.setMouseCallback("Spectrum", myclick) 
 
 while(nRet == ueye.IS_SUCCESS):
-
     # In order to display the image in an OpenCV window we need to...
     # ...extract the data of our image memory
     array = ueye.get_data(pcImageMemory, width, height, nBitsPerPixel, pitch, copy=False)
 
     # bytes_per_pixel = int(nBitsPerPixel / 8)
-
+    
     # ...reshape it in an numpy array...
     framergb = np.reshape(array,(height.value, width.value, bytes_per_pixel))
     frame = cv2.cvtColor(framergb, cv2.COLOR_BGR2GRAY)
@@ -247,26 +241,28 @@ while(nRet == ueye.IS_SUCCESS):
     frame2 = cv2.resize(frame,(0,0),fx=0.5, fy=0.5)
     
 #---------------------------------------------------------------------------------------------------------------------------------------
-    #Include image data processing here    
+    # Compute spectra, fftshift, divide by image size
     Spek = np.fft.fft2(frame2)
     Spek2 = np.fft.fftshift(Spek)/(width*height)
 
-    magnitude_spectrum = ( np.abs(Spek2) )
+    # magnitude part of the spectra, alternatively log
+    magnitude_spectrum = np.abs(Spek2)
     #magnitude_spectrum = abs(np.log(magnitude_spectrum+1))
     
-    # spectrum normalizace
+    # spectrum normalization
     mini, maxi, _, _ = cv2.minMaxLoc(magnitude_spectrum)
     magnitude_spectrum = 255*(magnitude_spectrum-mini)/(maxi-mini)
     
-    # frame normalizace
+    # frame normalization
     mini, maxi, _, _ = cv2.minMaxLoc(frame2)
     frame2 = (frame2-mini)/(maxi-mini)
         
-#---------------------------------------------------------------------------------------------------------------------------------------
+    # show in OpenCV windows
     cv2.imshow("Live image", frame2)    
     cv2.imshow("Spectrum", magnitude_spectrum)
     
     # Press q if you want to end the loop; press s if you want to save image
+    # Press u/d is you want to increase/decrease spectral window size 
     mykey = cv2.waitKey(3)
     if  mykey & 0xFF == ord('s'):
         directory = r'C:\Users\kolarr\Desktop\OffAxis'
@@ -282,8 +278,8 @@ while(nRet == ueye.IS_SUCCESS):
         print(speklen)
     elif mykey & 0xFF == ord('q'):
         break
-          
-    
+
+    # if click in spectral window, make the processing and imaging
     if len(refPoint)>0:
         SpekPart = Spek2[refPoint[1]-speklen:refPoint[1]+speklen, refPoint[0]-speklen:refPoint[0]+speklen ]        
         SpekPart = np.fft.ifftshift(SpekPart)*(speklen*speklen)        
